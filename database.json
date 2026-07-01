@@ -1,1 +1,14 @@
-{}
+{
+  "tournaments": [
+    {
+      "id": "tour_y2kzn_1v1",
+      "title": "(.gg/y2kzn)1v1 BD Only Punch",
+      "map": "level19_block",
+      "emotes": ["punch", "fire_punch"],
+      "maxPlayers": 2,
+      "roundsCount": 1,
+      "durationDays": 365,
+      "createdAt": "2026-07-01T22:00:00.000Z"
+    }
+  ]
+}
