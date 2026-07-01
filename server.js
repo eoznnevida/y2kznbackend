@@ -40,7 +40,7 @@ app.get(['/api/tournament/list', '/tournament/v2/list'], (req, res) => {
         return {
             Id: tour.id,
             Title: tour.title,
-            Type: "Classic", // Garante que cai na aba Classic do exemplo
+            Type: "Tournaments", // Garante que cai na aba Classic do exemplo
             Status: "Active",
             TargetVersion: "0.50-0.64",
             MaxPlayers: parseInt(tour.maxPlayers) || 2,
