@@ -1,0 +1,12 @@
+{
+  "name": "y2kzn",
+  "version": "1.0.0",
+  "description": "Backend para Stumble Guys customizado",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
