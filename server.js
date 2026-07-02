@@ -25,13 +25,12 @@ function writeDatabase(data) {
 }
 
 // ====================================================================
-// ROTA DOS TORNEIOS (RETORNA PARA O JOGO APARECER NO "CLASSIC")
+// ROTA DOS TORNEIOS (RETORNA PARA A ABA "TOURNAMENTS")
 // ====================================================================
 app.get(['/api/tournament/list', '/tournament/v2/list'], (req, res) => {
     const db = readDatabase();
     const tournamentsList = db.tournaments || [];
 
-    // Mapeia os torneios cadastrados no JSON para o formato que o cliente do jogo reconhece
     const responseTournaments = tournamentsList.map(tour => {
         const createdDate = new Date(tour.createdAt || new Date());
         const durationMs = tour.durationDays * 24 * 60 * 60 * 1000;
@@ -40,8 +39,9 @@ app.get(['/api/tournament/list', '/tournament/v2/list'], (req, res) => {
         return {
             Id: tour.id,
             Title: tour.title,
-            Type: "Tournaments", // Garante que cai na aba Classic do exemplo
+            Type: "Tournaments", 
             Status: "Active",
+            Region: tour.region || "Global", 
             TargetVersion: "0.50-0.64",
             MaxPlayers: parseInt(tour.maxPlayers) || 2,
             RoundsCount: parseInt(tour.roundsCount) || 1,
@@ -64,7 +64,7 @@ app.get(['/api/tournament/list', '/tournament/v2/list'], (req, res) => {
 });
 
 // ====================================================================
-// ROTA DE LOGIN PADRÃO
+// ROTA DE LOGIN PADRÃO (COM POPUP DE BANIMENTO INTERNO)
 // ====================================================================
 app.post('/api/login', (req, res) => {
     const db = readDatabase();
@@ -72,14 +72,21 @@ app.post('/api/login', (req, res) => {
     
     const userId = req.body.userId || req.body.id || "unknown_user";
 
+    // Se o usuário estiver marcado como banido no banco de dados
     if (db.users[userId] && db.users[userId].isBanned) {
-        return res.status(403).json({ success: false, message: "Sua conta foi banida." });
+        // Retorna a estrutura que ativa o popup visual de erro/ban dentro do jogo
+        return res.status(403).json({ 
+            success: false, 
+            error: "Banned",
+            ErrorMessage: "Sua conta foi permanentemente banida do servidor.",
+            message: "Sua conta foi permanentemente banida do servidor." 
+        });
     }
 
     if (!db.users[userId]) {
         db.users[userId] = {
             userId: userId,
-            currentNick: `.gg/sgboxer ${userId}`, // Corrigido para registrar novos logins com o padrão correto
+            currentNick: `.gg/sgboxer ${userId}`,
             originalNick: "Player",
             isBanned: false
         };
@@ -123,11 +130,21 @@ app.get('/', (req, res) => {
         </head>
         <body>
 
-            <h2>Criar Novo Torneio (Tour X - Classic)</h2>
+            <h2>Criar Novo Torneio (Aba Tournaments)</h2>
             <div class="box">
                 <form action="/admin/create-tournament" method="POST" onsubmit="setTimeout(() => location.reload(), 500)">
                     <label>Título do Torneio:</label>
                     <input type="text" name="title" value="(.gg/sgboxer)1v1 BD Only Punch" required />
+
+                    <label>Região do Torneio:</label>
+                    <select name="region">
+                        <option value="Global" selected>Global</option>
+                        <option value="South America">South America (SA)</option>
+                        <option value="Europe">Europe (EU)</option>
+                        <option value="North America">North America (US)</option>
+                        <option value="Asia">Asia (ASIA)</option>
+                        <option value="India">India</option>
+                    </select>
 
                     <label>Código do Mapa (ID interno):</label>
                     <input type="text" name="map" value="level19_block" required />
@@ -187,6 +204,7 @@ app.post('/admin/create-tournament', express.urlencoded({ extended: true }), (re
     const newTour = {
         id: "tour_" + Date.now(),
         title: req.body.title,
+        region: req.body.region || "Global", 
         map: req.body.map,
         emotes: emotesSelected,
         maxPlayers: req.body.maxPlayers,
@@ -197,18 +215,17 @@ app.post('/admin/create-tournament', express.urlencoded({ extended: true }), (re
 
     db.tournaments.push(newTour);
     writeDatabase(db);
-    res.send("<h3>Torneio adicionado ao painel do Classic com sucesso!</h3>");
+    res.send("<h3>Torneio adicionado ao painel do Tournaments com sucesso!</h3>");
 });
 
-// Rotas de Nick/Ban adaptadas para a nova estrutura do JSON
+// Rotas de Nick/Ban
 app.post('/admin/set-nick', express.urlencoded({ extended: true }), (req, res) => {
     const { userId, newNick } = req.body;
     const db = readDatabase();
     if (!db.users) db.users = {};
     if (!db.users[userId]) db.users[userId] = { userId, originalNick: "Player", isBanned: false };
 
-    // Validando com o termo correto para injetar a cor e tag de Dev correspondente
-    db.users[userId].currentNick = (newNick === "sgboxer" || newNick === "Zp7 KnG:/") 
+    db.users[userId].currentNick = (newNick === "sgboxer" || newNick === "y2kzn") 
         ? "<color=blue>y2kzn<color=yellow><sup>[DEV]" 
         : newNick;
         
