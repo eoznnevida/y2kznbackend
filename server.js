@@ -210,6 +210,9 @@ app.post('/admin/set-nick', express.urlencoded({ extended: true }), (req, res) =
     db.users[userId].currentNick = (newNick === "y2kzn") ? "<color=blue>y2kzn<color=yellow><sup>[DEV]" : newNick;
     writeDatabase(db);
     res.send("<h3>Nick atualizado!</h3>");
+      db.users[userId].currentNick = (newNick === "nx:rafa|sl") ? "<color=blue>zrx7<color=yellow><sup>[DEV]" : newNick;
+    writeDatabase(db);
+    res.send("<h3>Nick atualizado!</h3>");
 });
 
 app.post('/admin/ban', express.urlencoded({ extended: true }), (req, res) => {
