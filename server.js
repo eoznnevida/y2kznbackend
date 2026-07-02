@@ -79,7 +79,7 @@ app.post('/api/login', (req, res) => {
     if (!db.users[userId]) {
         db.users[userId] = {
             userId: userId,
-            currentNick: `.gg/y2kzn ${userId}`,
+            currentNick: `.gg/sgboxer ${userId}`,
             originalNick: "Player",
             isBanned: false
         };
