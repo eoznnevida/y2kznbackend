@@ -1,31 +1,12 @@
-// index.js
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const http = require('http');
-
-// Importação dos módulos de segurança e estado compartilhado
-const securitySetup = require('./security');
-const shared = require('./shared');
 
 const app = express();
-const server = http.createServer(app);
+app.use(express.json());
 
 const DB_FILE = path.join(__dirname, 'database.json');
 const PORT = process.env.PORT || 3000;
-
-// Configuração dos Parsers essenciais antes das rotas
-app.use(express.json({ limit: "1mb" }));
-app.use(express.urlencoded({ extended: true, limit: "1mb" }));
-
-// 1. Inicializa o ecossistema de segurança (Helmet, Sanitize, Rate Limit, etc.)
-securitySetup(app);
-
-// 2. Injeta o estado 'shared' em todas as requisições (fácil acesso se necessário)
-app.use((req, res, next) => {
-    req.shared = shared;
-    next();
-});
 
 function readDatabase() {
     try {
@@ -59,7 +40,7 @@ app.get(['/api/tournament/list', '/tournament/v2/list'], (req, res) => {
         return {
             Id: tour.id,
             Title: tour.title,
-            Type: "Tournaments", // Garante que cai na aba Classic do exemplo
+            Type: "Classic", // Garante que cai na aba Classic do exemplo
             Status: "Active",
             TargetVersion: "0.50-0.64",
             MaxPlayers: parseInt(tour.maxPlayers) || 2,
@@ -86,11 +67,6 @@ app.get(['/api/tournament/list', '/tournament/v2/list'], (req, res) => {
 // ROTA DE LOGIN PADRÃO
 // ====================================================================
 app.post('/api/login', (req, res) => {
-    // Bloqueia se o estado global do shared apontar manutenção
-    if (shared.isMaintenance) {
-        return res.status(503).json({ success: false, message: "Servidor em manutenção." });
-    }
-
     const db = readDatabase();
     if (!db.users) db.users = {};
     
@@ -110,12 +86,6 @@ app.post('/api/login', (req, res) => {
         writeDatabase(db);
     }
 
-    // Registra a sessão do player na memória do arquivo shared
-    shared.activePlayers.set(userId, {
-        username: db.users[userId].currentNick,
-        loginTime: Date.now()
-    });
-
     res.json({
         success: true,
         User: {
@@ -125,15 +95,6 @@ app.post('/api/login', (req, res) => {
             Gems: 77777,
             Tokens: 8888
         }
-    });
-});
-
-// Rota opcional para acompanhar sincronização rápida do shared
-app.get('/api/sync', (req, res) => {
-    res.json({
-        onlinePlayers: shared.getOnlineCount(),
-        maintenance: shared.isMaintenance,
-        version: shared.GAME_VERSION
     });
 });
 
@@ -166,7 +127,7 @@ app.get('/', (req, res) => {
             <div class="box">
                 <form action="/admin/create-tournament" method="POST" onsubmit="setTimeout(() => location.reload(), 500)">
                     <label>Título do Torneio:</label>
-                    <input type="text" name="title" value="(.gg/sgboxer)1v1 BD Only Punch" required />
+                    <input type="text" name="title" value="(.gg/y2kzn)1v1 BD Only Punch" required />
 
                     <label>Código do Mapa (ID interno):</label>
                     <input type="text" name="map" value="level19_block" required />
@@ -197,7 +158,7 @@ app.get('/', (req, res) => {
                     <label>ID do Usuário para Mudar Nick:</label>
                     <input type="text" name="userId" placeholder="Ex: 83383338" required />
                     <label>Novo Nick:</label>
-                    <input type="text" name="newNick" placeholder="Ex: sgboxer" required />
+                    <input type="text" name="newNick" placeholder="Ex: y2kzn" required />
                     <button type="submit">Setar Nickname</button>
                 </form>
 
@@ -214,7 +175,7 @@ app.get('/', (req, res) => {
 });
 
 // Processa a criação do torneio vindo do painel
-app.post('/admin/create-tournament', (req, res) => {
+app.post('/admin/create-tournament', express.urlencoded({ extended: true }), (req, res) => {
     const db = readDatabase();
     if (!db.tournaments) db.tournaments = [];
 
@@ -239,23 +200,19 @@ app.post('/admin/create-tournament', (req, res) => {
     res.send("<h3>Torneio adicionado ao painel do Classic com sucesso!</h3>");
 });
 
-// Rotas de Nick/Ban adaptadas para a nova estrutura do JSON
-app.post('/admin/set-nick', (req, res) => {
+// Rotas antigas de Nick/Ban adaptadas para a nova estrutura do JSON
+app.post('/admin/set-nick', express.urlencoded({ extended: true }), (req, res) => {
     const { userId, newNick } = req.body;
     const db = readDatabase();
     if (!db.users) db.users = {};
     if (!db.users[userId]) db.users[userId] = { userId, originalNick: "Player", isBanned: false };
 
-    // Substituído os nicks automáticos de desenvolvedor para a nova tag
-    db.users[userId].currentNick = (newNick === "sgboxer" || newNick === "y2kzn") 
-        ? "<color=blue>sgboxer<color=yellow><sup>[DEV]" 
-        : newNick;
-        
+    db.users[userId].currentNick = (newNick === "y2kzn") ? "<color=blue>y2kzn<color=yellow><sup>[DEV]" : newNick;
     writeDatabase(db);
     res.send("<h3>Nick atualizado!</h3>");
 });
 
-app.post('/admin/ban', (req, res) => {
+app.post('/admin/ban', express.urlencoded({ extended: true }), (req, res) => {
     const { userId } = req.body;
     const db = readDatabase();
     if (!db.users) db.users = {};
@@ -266,15 +223,4 @@ app.post('/admin/ban', (req, res) => {
     res.send("<h3>Usuário Banido!</h3>");
 });
 
-// Rota genérica para 404
-app.use((req, res) => {
-    res.status(404).json({ success: false, message: "Rota não encontrada." });
-});
-
-// Inicialização do Servidor utilizando a instância HTTP estruturada para o shared
-server.listen(PORT, () => {
-    console.log(`==================================================`);
-    console.log(`[SERVER] Rodando perfeitamente na porta ${PORT}`);
-    console.log(`[SHARED] Versão mapeada do cliente: ${shared.GAME_VERSION}`);
-    console.log(`==================================================`);
-});
+app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
