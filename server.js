@@ -25,7 +25,7 @@ function writeDatabase(data) {
 }
 
 // ====================================================================
-// ROTA DOS TORNEIOS (RETORNA PARA A ABA "TOURNAMENTS")
+// ROTA DOS TORNEIOS (CORRIGIDA PARA COMPATIBILIDADE DE REGIÃO)
 // ====================================================================
 app.get(['/api/tournament/list', '/tournament/v2/list'], (req, res) => {
     const db = readDatabase();
@@ -36,12 +36,17 @@ app.get(['/api/tournament/list', '/tournament/v2/list'], (req, res) => {
         const durationMs = tour.durationDays * 24 * 60 * 60 * 1000;
         const endTime = new Date(createdDate.getTime() + durationMs);
 
+        // Força a região selecionada a ficar em maiúscula (SA, EU, GLOBAL)
+        const tourRegion = (tour.region || "GLOBAL").toUpperCase();
+
         return {
             Id: tour.id,
             Title: tour.title,
             Type: "Tournaments", 
             Status: "Active",
-            Region: tour.region || "Global", 
+            // Para garantir que o jogo não rejeite, enviamos em formato de string e tratamos GLOBAL/ANY
+            Region: tourRegion, 
+            Regions: [tourRegion, "GLOBAL", "ANY"], // Algumas versões lêem o array "Regions" em vez de "Region"
             TargetVersion: "0.50-0.64",
             MaxPlayers: parseInt(tour.maxPlayers) || 2,
             RoundsCount: parseInt(tour.roundsCount) || 1,
@@ -64,7 +69,7 @@ app.get(['/api/tournament/list', '/tournament/v2/list'], (req, res) => {
 });
 
 // ====================================================================
-// ROTA DE LOGIN PADRÃO (COM POPUP DE BANIMENTO INTERNO)
+// ROTA DE LOGIN PADRÃO
 // ====================================================================
 app.post('/api/login', (req, res) => {
     const db = readDatabase();
@@ -72,12 +77,11 @@ app.post('/api/login', (req, res) => {
     
     const userId = req.body.userId || req.body.id || "unknown_user";
 
-    // Se o usuário estiver marcado como banido no banco de dados
     if (db.users[userId] && db.users[userId].isBanned) {
-        // Retorna a estrutura que ativa o popup visual de erro/ban dentro do jogo
-        return res.status(403).json({ 
+        return res.json({ 
             success: false, 
-            error: "Banned",
+            Banned: true,
+            Error: "Banned",
             ErrorMessage: "Sua conta foi permanentemente banida do servidor.",
             message: "Sua conta foi permanentemente banida do servidor." 
         });
@@ -106,7 +110,7 @@ app.post('/api/login', (req, res) => {
 });
 
 // ====================================================================
-// PAINEL DE CONTROLE ATUALIZADO (ADMIN)
+// PAINEL DE CONTROLE (ADMIN)
 // ====================================================================
 app.get('/', (req, res) => {
     res.send(`
@@ -138,12 +142,12 @@ app.get('/', (req, res) => {
 
                     <label>Região do Torneio:</label>
                     <select name="region">
-                        <option value="Global" selected>Global</option>
-                        <option value="South America">South America (SA)</option>
-                        <option value="Europe">Europe (EU)</option>
-                        <option value="North America">North America (US)</option>
-                        <option value="Asia">Asia (ASIA)</option>
-                        <option value="India">India</option>
+                        <option value="GLOBAL" selected>Global / Todas</option>
+                        <option value="SA">South America (SA)</option>
+                        <option value="EU">Europe (EU)</option>
+                        <option value="US">North America (US)</option>
+                        <option value="ASIA">Asia (ASIA)</option>
+                        <option value="IN">India (IN)</option>
                     </select>
 
                     <label>Código do Mapa (ID interno):</label>
@@ -204,7 +208,7 @@ app.post('/admin/create-tournament', express.urlencoded({ extended: true }), (re
     const newTour = {
         id: "tour_" + Date.now(),
         title: req.body.title,
-        region: req.body.region || "Global", 
+        region: req.body.region || "GLOBAL", 
         map: req.body.map,
         emotes: emotesSelected,
         maxPlayers: req.body.maxPlayers,
@@ -215,7 +219,7 @@ app.post('/admin/create-tournament', express.urlencoded({ extended: true }), (re
 
     db.tournaments.push(newTour);
     writeDatabase(db);
-    res.send("<h3>Torneio adicionado ao painel do Tournaments com sucesso!</h3>");
+    res.send("<h3>Torneio adicionado com sucesso! Crie com a opção 'Global / Todas' se seu jogo estiver em qualquer outra região.</h3>");
 });
 
 // Rotas de Nick/Ban
@@ -230,7 +234,7 @@ app.post('/admin/set-nick', express.urlencoded({ extended: true }), (req, res) =
         : newNick;
         
     writeDatabase(db);
-    res.send("<h3>Nick atualizado!</h3>");
+    res.send("<h3>Nick updated!</h3>");
 });
 
 app.post('/admin/ban', express.urlencoded({ extended: true }), (req, res) => {
@@ -241,7 +245,7 @@ app.post('/admin/ban', express.urlencoded({ extended: true }), (req, res) => {
 
     db.users[userId].isBanned = true;
     writeDatabase(db);
-    res.send("<h3>Usuário Banido!</h3>");
+    res.send("<h3>User Banned!</h3>");
 });
 
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
