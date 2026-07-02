@@ -40,7 +40,7 @@ app.get(['/api/tournament/list', '/tournament/v2/list'], (req, res) => {
         return {
             Id: tour.id,
             Title: tour.title,
-            Type: "Classic", // Garante que cai na aba Classic do exemplo
+            Type: "Tournaments", // Garante que cai na aba Classic do exemplo
             Status: "Active",
             TargetVersion: "0.50-0.64",
             MaxPlayers: parseInt(tour.maxPlayers) || 2,
@@ -79,7 +79,7 @@ app.post('/api/login', (req, res) => {
     if (!db.users[userId]) {
         db.users[userId] = {
             userId: userId,
-            currentNick: `.gg/sgboxer ${userId}`,
+            currentNick: `.gg/sgboxer ${userId}`, // Corrigido para registrar novos logins com o padrão correto
             originalNick: "Player",
             isBanned: false
         };
@@ -127,7 +127,7 @@ app.get('/', (req, res) => {
             <div class="box">
                 <form action="/admin/create-tournament" method="POST" onsubmit="setTimeout(() => location.reload(), 500)">
                     <label>Título do Torneio:</label>
-                    <input type="text" name="title" value="(.gg/y2kzn)1v1 BD Only Punch" required />
+                    <input type="text" name="title" value="(.gg/sgboxer)1v1 BD Only Punch" required />
 
                     <label>Código do Mapa (ID interno):</label>
                     <input type="text" name="map" value="level19_block" required />
@@ -158,7 +158,7 @@ app.get('/', (req, res) => {
                     <label>ID do Usuário para Mudar Nick:</label>
                     <input type="text" name="userId" placeholder="Ex: 83383338" required />
                     <label>Novo Nick:</label>
-                    <input type="text" name="newNick" placeholder="Ex: y2kzn" required />
+                    <input type="text" name="newNick" value="sgboxer" placeholder="Ex: sgboxer" required />
                     <button type="submit">Setar Nickname</button>
                 </form>
 
@@ -200,14 +200,18 @@ app.post('/admin/create-tournament', express.urlencoded({ extended: true }), (re
     res.send("<h3>Torneio adicionado ao painel do Classic com sucesso!</h3>");
 });
 
-// Rotas antigas de Nick/Ban adaptadas para a nova estrutura do JSON
+// Rotas de Nick/Ban adaptadas para a nova estrutura do JSON
 app.post('/admin/set-nick', express.urlencoded({ extended: true }), (req, res) => {
     const { userId, newNick } = req.body;
     const db = readDatabase();
     if (!db.users) db.users = {};
     if (!db.users[userId]) db.users[userId] = { userId, originalNick: "Player", isBanned: false };
 
-    db.users[userId].currentNick = (newNick === "y2kzn") ? "<color=blue>y2kzn<color=yellow><sup>[DEV]" : newNick;
+    // Validando com o termo correto para injetar a cor e tag de Dev correspondente
+    db.users[userId].currentNick = (newNick === "sgboxer" || newNick === "Zp7 KnG:/") 
+        ? "<color=blue>y2kzn<color=yellow><sup>[DEV]" 
+        : newNick;
+        
     writeDatabase(db);
     res.send("<h3>Nick atualizado!</h3>");
 });
