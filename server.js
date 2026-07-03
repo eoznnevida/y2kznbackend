@@ -8,10 +8,29 @@ app.use(express.json());
 const DB_FILE = path.join(__dirname, 'database.json');
 const PORT = process.env.PORT || 3000;
 
+// Função para ler a base de dados
 function readDatabase() {
     try {
         if (!fs.existsSync(DB_FILE)) {
-            fs.writeFileSync(DB_FILE, JSON.stringify({ tournaments: [], users: {} }));
+            // Se o arquivo não existir (pós re-deploy), ele cria com um torneio Global padrão integrado
+            const defaultData = {
+                tournaments: [
+                    {
+                        id: "tour_default_global",
+                        title: "(.gg/sgboxer) 1v1 BD Only Punch",
+                        region: "GLOBAL",
+                        map: "level19_block",
+                        emotes: ["punch", "fire_punch"],
+                        maxPlayers: "2",
+                        roundsCount: "1",
+                        durationDays: "365",
+                        createdAt: new Date().toISOString()
+                    }
+                ],
+                users: {}
+            };
+            fs.writeFileSync(DB_FILE, JSON.stringify(defaultData, null, 2));
+            return defaultData;
         }
         const data = fs.readFileSync(DB_FILE, 'utf8');
         return JSON.parse(data || '{"tournaments":[],"users":{}}');
@@ -21,11 +40,13 @@ function readDatabase() {
 }
 
 function writeDatabase(data) {
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+    try {
+        fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+    } catch (err) {}
 }
 
 // ====================================================================
-// ROTA DOS TORNEIOS (CORRIGIDA PARA COMPATIBILIDADE DE REGIÃO)
+// ROTA DOS TORNEIOS (ESTRUTURA BRINDADA E CORRIGIDA PARA O JOGO)
 // ====================================================================
 app.get(['/api/tournament/list', '/tournament/v2/list'], (req, res) => {
     const db = readDatabase();
@@ -33,32 +54,41 @@ app.get(['/api/tournament/list', '/tournament/v2/list'], (req, res) => {
 
     const responseTournaments = tournamentsList.map(tour => {
         const createdDate = new Date(tour.createdAt || new Date());
-        const durationMs = tour.durationDays * 24 * 60 * 60 * 1000;
+        const durationMs = parseInt(tour.durationDays || 365) * 24 * 60 * 60 * 1000;
         const endTime = new Date(createdDate.getTime() + durationMs);
+        const secondsLeft = Math.max(0, Math.floor((endTime - new Date()) / 1000));
 
-        // Força a região selecionada a ficar em maiúscula (SA, EU, GLOBAL)
         const tourRegion = (tour.region || "GLOBAL").toUpperCase();
 
         return {
             Id: tour.id,
             Title: tour.title,
-            Type: "Tournaments", 
+            Type: "Tournaments", // Direto para a aba Tournaments
             Status: "Active",
-            // Para garantir que o jogo não rejeite, enviamos em formato de string e tratamos GLOBAL/ANY
             Region: tourRegion, 
-            Regions: [tourRegion, "GLOBAL", "ANY"], // Algumas versões lêem o array "Regions" em vez de "Region"
+            Regions: [tourRegion, "GLOBAL", "ANY"], // Multi-regiões para o jogo não rejeitar
             TargetVersion: "0.50-0.64",
             MaxPlayers: parseInt(tour.maxPlayers) || 2,
             RoundsCount: parseInt(tour.roundsCount) || 1,
             MapLoop: [tour.map || "level19_block"],
             AllowedEmotes: tour.emotes || ["punch"],
+            
+            // Campos obrigatórios que o cliente do jogo precisa para renderizar o torneio na lista
+            EntryFee: 0,
+            EntryFeeType: "Gems",
+            SubscriptionStatus: "NotSubscribed",
+            RegisteredPlayers: 0,
+            IsFeatured: true,
+            
             Rewards: {
                 Xp: 200,
                 RewardText: "1ST PRIZE"
             },
             StartTime: createdDate.toISOString(),
             EndTime: endTime.toISOString(),
-            SecondsLeft: Math.max(0, Math.floor((endTime - new Date()) / 1000))
+            SecondsLeft: secondsLeft,
+            SignupStartTime: createdDate.toISOString(),
+            SignupSecondsLeft: secondsLeft
         };
     });
 
@@ -138,7 +168,7 @@ app.get('/', (req, res) => {
             <div class="box">
                 <form action="/admin/create-tournament" method="POST" onsubmit="setTimeout(() => location.reload(), 500)">
                     <label>Título do Torneio:</label>
-                    <input type="text" name="title" value="(.gg/sgboxer)1v1 BD Only Punch" required />
+                    <input type="text" name="title" value="(.gg/sgboxer) 1v1 BD Only Punch" required />
 
                     <label>Região do Torneio:</label>
                     <select name="region">
@@ -219,7 +249,7 @@ app.post('/admin/create-tournament', express.urlencoded({ extended: true }), (re
 
     db.tournaments.push(newTour);
     writeDatabase(db);
-    res.send("<h3>Torneio adicionado com sucesso! Crie com a opção 'Global / Todas' se seu jogo estiver em qualquer outra região.</h3>");
+    res.send("<h3>Torneio adicionado com sucesso!</h3>");
 });
 
 // Rotas de Nick/Ban
@@ -234,7 +264,7 @@ app.post('/admin/set-nick', express.urlencoded({ extended: true }), (req, res) =
         : newNick;
         
     writeDatabase(db);
-    res.send("<h3>Nick updated!</h3>");
+    res.send("<h3>Nick atualizado!</h3>");
 });
 
 app.post('/admin/ban', express.urlencoded({ extended: true }), (req, res) => {
@@ -245,7 +275,7 @@ app.post('/admin/ban', express.urlencoded({ extended: true }), (req, res) => {
 
     db.users[userId].isBanned = true;
     writeDatabase(db);
-    res.send("<h3>User Banned!</h3>");
+    res.send("<h3>Usuário Banido!</h3>");
 });
 
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
